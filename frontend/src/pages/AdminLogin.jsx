@@ -10,15 +10,13 @@ export default function AdminLogin() {
   const navigate = useNavigate();
 
   const handleLogin = async () => {
-    setPassword("");
-    setUsername("");
     if (!username || !password) {
       toast.warning("Please enter both username and password.");
       return;
     }
 
     try {
-      const res = await axios.post("http://localhost:5005/api/admin/login", {
+      const res = await axios.post(`${API_BASE_URL}/api/admin/login`, {
         username,
         password,
       });
@@ -26,9 +24,15 @@ export default function AdminLogin() {
       localStorage.setItem("adminToken", res.data.token);
       localStorage.setItem("isAdminLoggedIn", "true");
       localStorage.setItem("loggedInUser", username);
+
+      // ✅ Now clear fields AFTER storing
+      setUsername("");
+      setPassword("");
+
+      // ✅ Redirect to dashboard
       navigate("/admin-dashboard");
     } catch (err) {
-      toast.error("Invalid username or password."); // ✅ show toast instead of inline text
+      toast.error("Invalid username or password.");
     }
   };
 
