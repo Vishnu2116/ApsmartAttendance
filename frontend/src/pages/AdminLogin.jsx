@@ -4,8 +4,16 @@ import { useNavigate } from "react-router-dom";
 import Navbar from "../components/Navbar";
 import { toast } from "react-toastify"; // ✅ import toast
 import API_BASE_URL from "../config";
+import { useEffect } from "react";
 
 export default function AdminLogin() {
+  useEffect(() => {
+    const token = localStorage.getItem("adminToken");
+    if (token) {
+      navigate("/admin-dashboard");
+    }
+  }, []);
+
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const navigate = useNavigate();
