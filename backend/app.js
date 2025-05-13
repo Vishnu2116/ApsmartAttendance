@@ -7,10 +7,7 @@ const app = express();
 
 app.use(
   cors({
-    origin: [
-      "http://localhost:5173",
-      "https://your-frontend-name.onrender.com",
-    ],
+    origin: ["http://localhost:5173", "https://apsmartattendance.onrender.com"],
     credentials: true,
   })
 );
