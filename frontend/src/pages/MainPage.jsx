@@ -1,8 +1,8 @@
 import React, { useState } from "react";
 import Navbar from "../components/Navbar";
 import axios from "axios";
-import API_BASE_URL from "../config";
 import { useNavigate } from "react-router-dom";
+import API_BASE_URL from "../config";
 
 export default function MainPage() {
   const [name, setName] = useState("");
@@ -17,37 +17,72 @@ export default function MainPage() {
     }
 
     try {
-      const result = await navigator.credentials.get({
-        publicKey: {
-          challenge: new Uint8Array([
-            /* dummy */
-          ]),
-          allowCredentials: [],
-          timeout: 60000,
-          userVerification: "preferred",
-        },
+      const credentialId = localStorage.getItem("credentialId");
+      if (!credentialId) {
+        alert("Please register your fingerprint first.");
+        return;
+      }
+
+      const publicKey = {
+        challenge: new Uint8Array(32),
+        timeout: 60000,
+        userVerification: "required",
+        allowCredentials: [
+          {
+            id: Uint8Array.from(atob(credentialId), (c) => c.charCodeAt(0)),
+            type: "public-key",
+            transports: ["internal"],
+          },
+        ],
+      };
+
+      await navigator.credentials.get({ publicKey });
+
+      await axios.post(`${API_BASE_URL}/api/attendances`, {
+        user_id: name,
+        status: "Success",
       });
 
-      if (result) {
-        await axios.post("http://localhost:5005/api/attendances", {
-          user_id: name,
-          status: "Success",
-        });
-        setMessage("");
-        setModalVisible(true);
-        console.log("✅ Modal should now show");
-
-        setTimeout(() => {
-          setModalVisible(false);
-          console.log("⏱️ Modal hidden after 2 seconds");
-        }, 2000);
-      }
+      setMessage("");
+      setModalVisible(true);
+      setTimeout(() => setModalVisible(false), 2000);
     } catch (err) {
-      await axios.post("http://localhost:5005/api/attendances", {
+      await axios.post(`${API_BASE_URL}/api/attendances`, {
         user_id: name,
         status: "Failed",
       });
       setMessage("Authentication failed. Please try again.");
+    }
+  };
+
+  const registerFingerprint = async () => {
+    try {
+      const publicKey = {
+        challenge: new Uint8Array(32),
+        rp: { name: "Smart Attendance" },
+        user: {
+          id: new Uint8Array(16),
+          name: "user@example.com",
+          displayName: "User",
+        },
+        pubKeyCredParams: [{ alg: -7, type: "public-key" }],
+        authenticatorSelection: {
+          authenticatorAttachment: "platform",
+          userVerification: "required",
+        },
+        timeout: 60000,
+        attestation: "none",
+      };
+
+      const credential = await navigator.credentials.create({ publicKey });
+      const rawId = btoa(
+        String.fromCharCode(...new Uint8Array(credential.rawId))
+      );
+      localStorage.setItem("credentialId", rawId);
+      alert("Fingerprint registered successfully.");
+      window.location.reload(); // hide the button after registration
+    } catch (e) {
+      alert("Fingerprint registration failed: " + e.message);
     }
   };
 
@@ -120,22 +155,53 @@ export default function MainPage() {
         </div>
       </div>
 
-      {/* ✅ Success Modal */}
+      {!localStorage.getItem("credentialId") && (
+        <button
+          onClick={registerFingerprint}
+          style={{
+            position: "fixed",
+            bottom: "20px",
+            right: "20px",
+            backgroundColor: "#2c3e50",
+            color: "white",
+            border: "none",
+            padding: "12px 18px",
+            borderRadius: "50px",
+            cursor: "pointer",
+            boxShadow: "0 4px 12px rgba(0,0,0,0.2)",
+            zIndex: 1000,
+          }}
+        >
+          Register Fingerprint
+        </button>
+      )}
+
       {modalVisible && (
         <div
           style={{
             position: "fixed",
-            top: "40%",
-            left: "50%",
-            transform: "translate(-50%, -50%)",
-            backgroundColor: "white",
-            padding: "30px",
-            borderRadius: "10px",
-            boxShadow: "0 4px 20px rgba(0, 0, 0, 0.2)",
-            zIndex: 1000,
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            backgroundColor: "rgba(0,0,0,0.5)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            zIndex: 999,
           }}
         >
-          <h3>✅ Attendance Recorded</h3>
+          <div
+            style={{
+              backgroundColor: "white",
+              padding: "30px",
+              borderRadius: "10px",
+              textAlign: "center",
+              boxShadow: "0 4px 20px rgba(0,0,0,0.3)",
+            }}
+          >
+            <h3>✅ Attendance Recorded</h3>
+          </div>
         </div>
       )}
     </div>
