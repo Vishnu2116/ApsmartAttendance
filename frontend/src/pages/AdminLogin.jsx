@@ -3,6 +3,7 @@ import axios from "axios";
 import { useNavigate } from "react-router-dom";
 import Navbar from "../components/Navbar";
 import { toast } from "react-toastify"; // ✅ import toast
+import API_BASE_URL from "../config";
 
 export default function AdminLogin() {
   const [username, setUsername] = useState("");
@@ -17,23 +18,22 @@ export default function AdminLogin() {
 
     try {
       const res = await axios.post(`${API_BASE_URL}/api/admin/login`, {
-        username,
-        password,
+        username: username.trim(),
+        password: password.trim(),
       });
 
       localStorage.setItem("adminToken", res.data.token);
       localStorage.setItem("isAdminLoggedIn", "true");
       localStorage.setItem("loggedInUser", username);
 
-      // ✅ Now clear fields AFTER storing
-      setUsername("");
-      setPassword("");
-
       // ✅ Redirect to dashboard
       navigate("/admin-dashboard");
     } catch (err) {
       toast.error("Invalid username or password.");
     }
+    // ✅ Now clear fields AFTER storing
+    setUsername("");
+    setPassword("");
   };
 
   return (

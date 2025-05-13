@@ -1,210 +1,174 @@
-import React, { useState } from "react";
+import { useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import Navbar from "../components/Navbar";
 import axios from "axios";
-import { useNavigate } from "react-router-dom";
+import API_BASE_URL from "../config";
 
-export default function MainPage() {
-  const [name, setName] = useState("");
-  const [modalVisible, setModalVisible] = useState(false);
-  const [message, setMessage] = useState("");
+export default function AdminDashboard() {
   const navigate = useNavigate();
+  const [logs, setLogs] = useState([]);
+  const [userHours, setUserHours] = useState({});
 
-  const handleAuthenticate = async () => {
-    if (!name.trim()) {
-      setMessage("Please enter your name.");
-      return;
+  useEffect(() => {
+    const token = localStorage.getItem("adminToken");
+    if (!token) {
+      navigate("/admin-login");
+    } else {
+      fetchLogs();
     }
+  }, []);
 
+  const fetchLogs = async () => {
     try {
-      const credentialId = localStorage.getItem("credentialId");
-      if (!credentialId) {
-        alert("Please register your fingerprint first.");
-        return;
-      }
-
-      const publicKey = {
-        challenge: new Uint8Array(32),
-        timeout: 60000,
-        userVerification: "required",
-        allowCredentials: [
-          {
-            id: Uint8Array.from(atob(credentialId), (c) => c.charCodeAt(0)),
-            type: "public-key",
-            transports: ["internal"],
-          },
-        ],
-      };
-
-      await navigator.credentials.get({ publicKey });
-
-      await axios.post("http://localhost:5005/api/attendances", {
-        user_id: name,
-        status: "Success",
-      });
-
-      setMessage("");
-      setModalVisible(true);
-      setTimeout(() => setModalVisible(false), 2000);
+      const res = await axios.get(`${API_BASE_URL}/api/attendances`);
+      const sortedLogs = res.data.sort(
+        (a, b) => new Date(b.timestamp) - new Date(a.timestamp)
+      );
+      setLogs(sortedLogs);
+      computeUserHours(sortedLogs);
     } catch (err) {
-      await axios.post("http://localhost:5005/api/attendances", {
-        user_id: name,
-        status: "Failed",
-      });
-      setMessage("Authentication failed. Please try again.");
+      console.error("Failed to fetch logs", err);
     }
   };
 
-  const registerFingerprint = async () => {
-    try {
-      const publicKey = {
-        challenge: new Uint8Array(32),
-        rp: { name: "Smart Attendance" },
-        user: {
-          id: new Uint8Array(16),
-          name: "user@example.com",
-          displayName: "User",
-        },
-        pubKeyCredParams: [{ alg: -7, type: "public-key" }],
-        authenticatorSelection: {
-          authenticatorAttachment: "platform",
-          userVerification: "required",
-        },
-        timeout: 60000,
-        attestation: "none",
-      };
+  const computeUserHours = (logs) => {
+    const userMap = {};
 
-      const credential = await navigator.credentials.create({ publicKey });
-      const rawId = btoa(
-        String.fromCharCode(...new Uint8Array(credential.rawId))
-      );
-      localStorage.setItem("credentialId", rawId);
-      alert("Fingerprint registered successfully.");
-      window.location.reload(); // hide the button after registration
-    } catch (e) {
-      alert("Fingerprint registration failed: " + e.message);
-    }
+    logs.forEach((log) => {
+      if (log.status !== "Success") return;
+      const user = log.user_id;
+      const time = new Date(log.timestamp);
+      if (!userMap[user]) userMap[user] = [];
+      userMap[user].push(time);
+    });
+
+    const hoursPerUser = {};
+
+    Object.entries(userMap).forEach(([user, times]) => {
+      let totalMs = 0;
+      times.sort((a, b) => a - b);
+      for (let i = 0; i < times.length - 1; i += 2) {
+        const start = times[i];
+        const end = times[i + 1] || new Date();
+        totalMs += end - start;
+      }
+      const hours = totalMs / (1000 * 60 * 60);
+      hoursPerUser[user] = hours.toFixed(2);
+    });
+
+    setUserHours(hoursPerUser);
   };
 
   return (
-    <div
-      style={{ minHeight: "100vh", display: "flex", flexDirection: "column" }}
-    >
+    <div>
       <Navbar />
 
-      <div
-        style={{
-          flex: 1,
-          display: "flex",
-          flexDirection: "column",
-          justifyContent: "center",
-          alignItems: "center",
-          padding: "30px",
-        }}
-      >
-        <h2>Please record your attendance</h2>
+      <div style={{ padding: "20px" }}>
+        <h2 style={{ marginBottom: "15px" }}>All Attendance Logs</h2>
 
-        <input
-          type="text"
-          placeholder="Enter your name"
-          value={name}
-          onChange={(e) => setName(e.target.value)}
-          style={{
-            padding: "10px",
-            width: "300px",
-            fontSize: "16px",
-            marginBottom: "15px",
-            border: "1px solid #ccc",
-            borderRadius: "6px",
-          }}
-        />
-        <br />
-        <button
-          onClick={handleAuthenticate}
-          style={{
-            padding: "10px 20px",
-            fontSize: "16px",
-            backgroundColor: "#2c3e50",
-            color: "white",
-            border: "none",
-            borderRadius: "6px",
-            cursor: "pointer",
-          }}
-        >
-          Authenticate
-        </button>
-
-        {message && (
-          <div style={{ marginTop: "15px", color: "red" }}>{message}</div>
-        )}
-
-        <div style={{ marginTop: "25px" }}>
-          <button
-            onClick={() => navigate("/admin-login")}
-            style={{
-              background: "none",
-              color: "#3498db",
-              textDecoration: "underline",
-              cursor: "pointer",
-              fontSize: "15px",
-              border: "none",
-            }}
-          >
-            Admin Login
-          </button>
-        </div>
-      </div>
-
-      {/* ✅ Fingerprint Register Button — shown only once */}
-      {!localStorage.getItem("credentialId") && (
-        <button
-          onClick={registerFingerprint}
-          style={{
-            position: "fixed",
-            bottom: "20px",
-            right: "20px",
-            backgroundColor: "#2c3e50",
-            color: "white",
-            border: "none",
-            padding: "12px 18px",
-            borderRadius: "50px",
-            cursor: "pointer",
-            boxShadow: "0 4px 12px rgba(0,0,0,0.2)",
-            zIndex: 1000,
-          }}
-        >
-          Register Fingerprint
-        </button>
-      )}
-
-      {/* ✅ Success Modal */}
-      {modalVisible && (
+        {/* Scrollable Logs Table Box */}
         <div
           style={{
-            position: "fixed",
-            top: 0,
-            left: 0,
-            right: 0,
-            bottom: 0,
-            backgroundColor: "rgba(0,0,0,0.5)",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            zIndex: 999,
+            border: "2px solid #c3c3c3",
+            borderRadius: "10px",
+            padding: "10px 0",
+            maxHeight: "400px",
+            overflowY: "auto",
+            background: "white",
+            boxShadow: "0 6px 20px rgba(0,0,0,0.1)",
           }}
         >
-          <div
+          <table
             style={{
-              backgroundColor: "white",
-              padding: "30px",
-              borderRadius: "10px",
-              textAlign: "center",
-              boxShadow: "0 4px 20px rgba(0,0,0,0.3)",
+              width: "90%",
+              borderCollapse: "collapse",
+              fontSize: "15px",
+              margin: "0 auto",
             }}
           >
-            <h3>✅ Attendance Recorded</h3>
-          </div>
+            <thead
+              style={{
+                position: "sticky",
+                top: 0,
+                zIndex: 10,
+                background: "#ffffff",
+                boxShadow: "0 2px 3px rgba(0,0,0,0.05)",
+                borderBottom: "2px solid #ccc",
+              }}
+            >
+              <tr>
+                <th style={thStyle}>ID</th>
+                <th style={thStyle}>User</th>
+                <th style={thStyle}>Status</th>
+                <th style={thStyle}>Timestamp</th>
+              </tr>
+            </thead>
+            <tbody>
+              {logs.map((log) => (
+                <tr key={log.id}>
+                  <td style={tdStyle}>{log.id}</td>
+                  <td style={tdStyle}>{log.user_id}</td>
+                  <td style={tdStyle}>{log.status}</td>
+                  <td style={tdStyle}>
+                    {new Date(log.timestamp).toLocaleString()}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
         </div>
-      )}
+
+        {/* User-wise Total Hours */}
+        <div
+          style={{
+            marginTop: "30px",
+            padding: "20px",
+            border: "2px solid #c3c3c3",
+            borderRadius: "10px",
+            background: "#f0f4f8",
+            boxShadow: "0 6px 20px rgba(0,0,0,0.1)",
+          }}
+        >
+          <h3 style={{ marginBottom: "15px", textAlign: "center" }}>
+            Total Hours Per User
+          </h3>
+          <table
+            style={{
+              width: "60%",
+              margin: "0 auto",
+              fontSize: "15px",
+              borderCollapse: "collapse",
+            }}
+          >
+            <thead>
+              <tr>
+                <th style={thStyle}>User</th>
+                <th style={thStyle}>Hours Present</th>
+              </tr>
+            </thead>
+            <tbody>
+              {Object.entries(userHours).map(([user, hours]) => (
+                <tr key={user}>
+                  <td style={tdStyle}>{user}</td>
+                  <td style={tdStyle}>{hours}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
     </div>
   );
 }
+
+const thStyle = {
+  padding: "10px",
+  borderBottom: "1px solid #ddd",
+  textAlign: "left",
+  backgroundColor: "#f0f0f0",
+};
+
+const tdStyle = {
+  padding: "8px 10px",
+  borderBottom: "1px solid #eee",
+};
