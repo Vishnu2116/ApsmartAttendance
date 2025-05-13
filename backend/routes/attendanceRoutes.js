@@ -15,7 +15,7 @@ router.get("/", async (req, res) => {
   }
 });
 
-// ✅ POST a new attendance record (NO device_id now)
+// ✅ POST a new attendance record with IST timestamp
 router.post("/", async (req, res) => {
   const { user_id, status } = req.body;
 
@@ -23,10 +23,15 @@ router.post("/", async (req, res) => {
     return res.status(400).json({ error: "Missing required fields" });
   }
 
+  // Get IST time manually
+  const istNow = new Date(
+    new Date().toLocaleString("en-US", { timeZone: "Asia/Kolkata" })
+  );
+
   try {
     const result = await pool.query(
-      "INSERT INTO attendances (user_id, status) VALUES ($1, $2) RETURNING *",
-      [user_id, status]
+      "INSERT INTO attendances (user_id, status, timestamp) VALUES ($1, $2, $3) RETURNING *",
+      [user_id, status, istNow]
     );
     res.status(201).json(result.rows[0]);
   } catch (err) {
