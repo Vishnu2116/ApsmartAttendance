@@ -25,10 +25,16 @@ export default function AdminLogin() {
     }
 
     try {
-      const res = await axios.post(`${API_BASE_URL}/api/admin/login`, {
-        username: username.trim(),
-        password: password.trim(),
-      });
+      // const res = await axios.post(`${API_BASE_URL}/api/admin/login`, {
+      //   username: username.trim(),
+      //   password: password.trim(),
+      const res = await axios.post(
+        "https://smart-attendance-backend-m80c.onrender.com/api/admin/login",
+        {
+          username: username.trim(),
+          password: password.trim(),
+        }
+      );
 
       localStorage.setItem("adminToken", res.data.token);
       localStorage.setItem("isAdminLoggedIn", "true");
