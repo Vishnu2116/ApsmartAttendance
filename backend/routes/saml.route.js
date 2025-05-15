@@ -72,16 +72,29 @@ UTPcsvdDeJr6BK3cHG4CnpSqZD6vblaSbE3Bu1zYQQyF71q1LLOPsA5J3ng=
   // SAML Routes
   router.get("/api/auth/saml", passport.authenticate("saml"));
 
-  router.post(
-    "/api/auth/saml/callback",
-    passport.authenticate("saml", { failureRedirect: "/login" }),
-    (req, res) => {
-      const token = jwt.sign({ username: req.user.username }, JWT_SECRET, {
-        expiresIn: "10h",
-      });
-      res.redirect(`${FRONTEND_URL}/?token=${encodeURIComponent(token)}`);
+router.post(
+  "/api/auth/saml/callback",
+  passport.authenticate("saml", { failureRedirect: "/admin-login?error=saml" }),
+  (req, res) => {
+    if (!req.user) {
+      return res.redirect(`${FRONTEND_URL}/admin-login?error=saml`);
     }
-  );
+
+    const token = jwt.sign(
+      {
+        username: req.user.username,
+        isAdmin: true,
+      },
+      JWT_SECRET,
+      { expiresIn: "10h" }
+    );
+
+    // Redirect to frontend with token
+    res.redirect(
+      `${FRONTEND_URL}/admin-login?token=${encodeURIComponent(token)}`
+    );
+  }
+);
 
   router.get("/api/auth/saml/metadata", (req, res) => {
     res.type("application/xml");

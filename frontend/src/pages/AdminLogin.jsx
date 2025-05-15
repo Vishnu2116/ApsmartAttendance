@@ -1,12 +1,12 @@
 import React, { useState, useEffect } from "react";
-import axios from "axios";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import Navbar from "../components/Navbar";
 import { toast } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
+import axios from "axios";
 import API_BASE_URL from "../config";
 
-export default function AdminLogin() {
+export default function AdminLogin({ setIsAuthenticated }) {
   const [searchParams] = useSearchParams();
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
@@ -15,39 +15,55 @@ export default function AdminLogin() {
   const IS_PRODUCTION = process.env.NODE_ENV === "production";
 
   useEffect(() => {
-    const token = searchParams.get("token");
+    // Check for existing token on component mount
+    const token = localStorage.getItem("adminToken") || sessionStorage.getItem("adminToken");
     if (token) {
-      setIsProcessingSaml(true);
-      try {
-        localStorage.setItem("adminToken", token);
-        localStorage.setItem("isAdminLoggedIn", "true");
-        localStorage.setItem("loggedInUser", "admin");
-        
-        // Also store in sessionStorage as backup
-        sessionStorage.setItem("adminToken", token);
-        sessionStorage.setItem("isAdminLoggedIn", "true");
-        sessionStorage.setItem("loggedInUser", "admin");
-        
-        toast.success("SSO login successful!");
-        setTimeout(() => {
-          navigate("/admin-dashboard");
-          setIsProcessingSaml(false);
-        }, 1500);
-      } catch (e) {
-        console.error("Error storing token:", e);
-        toast.error(`Error processing SSO login: ${e.message}`);
-        setIsProcessingSaml(false);
-      }
+      setIsAuthenticated(true);
+      navigate("/admin-dashboard");
+      return;
     }
-    
-    // Check for error parameters
+
+    // Handle SAML callback with token from URL
+    const tokenFromUrl = searchParams.get("token");
+    if (tokenFromUrl) {
+      handleSamlCallback(tokenFromUrl);
+    }
+
+    // Handle SAML errors from URL
     const error = searchParams.get("error");
     if (error === "saml") {
-      toast.error("SAML authentication failed. Please try again.");
+      toast.error("SSO authentication failed. Please try again.");
     }
-  }, [searchParams, navigate]);
+  }, [searchParams, navigate, setIsAuthenticated]);
 
-  const handleLogin = async () => {
+  const handleSamlCallback = (token) => {
+    setIsProcessingSaml(true);
+    try {
+      // Store token in multiple storage locations for redundancy
+      localStorage.setItem("adminToken", token);
+      localStorage.setItem("isAdminLoggedIn", "true");
+      localStorage.setItem("loggedInUser", "admin");
+      
+      sessionStorage.setItem("adminToken", token);
+      sessionStorage.setItem("isAdminLoggedIn", "true");
+      sessionStorage.setItem("loggedInUser", "admin");
+
+      // Update global authentication state
+      setIsAuthenticated(true);
+      
+      toast.success("SSO login successful!");
+      navigate("/admin-dashboard");
+    } catch (e) {
+      console.error("Error storing token:", e);
+      toast.error(`Error processing SSO login: ${e.message}`);
+    } finally {
+      setIsProcessingSaml(false);
+    }
+  };
+
+  const handleLogin = async (e) => {
+    e.preventDefault();
+    
     if (!username || !password) {
       toast.warning("Please enter both username and password.");
       return;
@@ -59,11 +75,16 @@ export default function AdminLogin() {
         password: password.trim(),
       });
 
+      // Store authentication data
       localStorage.setItem("adminToken", res.data.token);
       localStorage.setItem("isAdminLoggedIn", "true");
       localStorage.setItem("loggedInUser", username);
+      
+      // Update global auth state and redirect
+      setIsAuthenticated(true);
       navigate("/admin-dashboard");
     } catch (err) {
+      console.error("Login error:", err);
       toast.error("Invalid username or password.");
     }
     setUsername("");
@@ -90,9 +111,10 @@ export default function AdminLogin() {
             padding: "40px",
             background: "white",
             borderRadius: "10px",
-            boxShadow: "0 4px 15px rgba(0,0,0,0.1)"
+            boxShadow: "0 4px 15px rgba(0,0,0,0.1)",
+            minWidth: "350px"
           }}>
-            <h2>Processing SSO Login</h2>
+            <h2 style={{ marginBottom: "15px", color: "#2c3e50" }}>Processing SSO Login</h2>
             <p>Please wait while we authenticate you...</p>
             <div style={{ 
               width: "40px", 
@@ -121,51 +143,53 @@ export default function AdminLogin() {
           }}>
             <h2 style={{ marginBottom: "25px", color: "#2c3e50" }}>Admin Login</h2>
 
-            <input
-              type="text"
-              placeholder="Username"
-              value={username}
-              onChange={(e) => setUsername(e.target.value)}
-              style={{
-                padding: "10px",
-                marginBottom: "15px",
-                width: "100%",
-                borderRadius: "6px",
-                border: "1px solid #ccc",
-                fontSize: "16px",
-              }}
-            />
-            <br />
-            <input
-              type="password"
-              placeholder="Password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              style={{
-                padding: "10px",
-                marginBottom: "20px",
-                width: "100%",
-                borderRadius: "6px",
-                border: "1px solid #ccc",
-                fontSize: "16px",
-              }}
-            />
-            <br />
-            <button
-              onClick={handleLogin}
-              style={{
-                padding: "10px 20px",
-                fontSize: "16px",
-                backgroundColor: "#2c3e50",
-                color: "white",
-                border: "none",
-                borderRadius: "6px",
-                cursor: "pointer",
-                width: "100%",
-              }}
-            >
-              Login
-            </button>
+            <form onSubmit={handleLogin}>
+              <input
+                type="text"
+                placeholder="Username"
+                value={username}
+                onChange={(e) => setUsername(e.target.value)}
+                style={{
+                  padding: "10px",
+                  marginBottom: "15px",
+                  width: "100%",
+                  borderRadius: "6px",
+                  border: "1px solid #ccc",
+                  fontSize: "16px",
+                }}
+              />
+              <br />
+              <input
+                type="password"
+                placeholder="Password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                style={{
+                  padding: "10px",
+                  marginBottom: "20px",
+                  width: "100%",
+                  borderRadius: "6px",
+                  border: "1px solid #ccc",
+                  fontSize: "16px",
+                }}
+              />
+              <br />
+              <button
+                type="submit"
+                style={{
+                  padding: "10px 20px",
+                  fontSize: "16px",
+                  backgroundColor: "#2c3e50",
+                  color: "white",
+                  border: "none",
+                  borderRadius: "6px",
+                  cursor: "pointer",
+                  width: "100%",
+                }}
+              >
+                Login
+              </button>
+            </form>
 
             {IS_PRODUCTION && (
               <div style={{ marginTop: "20px" }}>
