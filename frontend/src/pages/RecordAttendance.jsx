@@ -24,17 +24,19 @@ export default function RecordAttendance() {
       });
 
       if (result) {
-        await axios.post("http://localhost:5001/api/attendances", {
+        await axios.post(`${API_BASE_URL}/api/attendances`, {
           user_id: userId,
           status: "Success",
         });
+
         setStatusMsg("✅ Attendance recorded successfully.");
       }
     } catch (err) {
-      await axios.post("http://localhost:5001/api/attendances", {
+      await axios.post(`${API_BASE_URL}/api/attendances`, {
         user_id: userId,
         status: "Failed",
       });
+
       setStatusMsg("❌ Fingerprint authentication failed.");
     }
   };

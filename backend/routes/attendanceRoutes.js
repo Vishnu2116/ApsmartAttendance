@@ -5,10 +5,10 @@ const pool = require("../db/db");
 // ✅ GET all attendance logs
 router.get("/", async (req, res) => {
   try {
-    const result = await pool.query(
+    const [rows] = await pool.query(
       "SELECT * FROM attendances ORDER BY timestamp DESC"
     );
-    res.json(result.rows);
+    res.json(rows);
   } catch (err) {
     console.error("GET /api/attendances error:", err);
     res.status(500).json({ error: err.message });
@@ -23,17 +23,18 @@ router.post("/", async (req, res) => {
     return res.status(400).json({ error: "Missing required fields" });
   }
 
-  // Get IST time manually
   const istNow = new Date(
     new Date().toLocaleString("en-US", { timeZone: "Asia/Kolkata" })
   );
 
   try {
-    const result = await pool.query(
-      "INSERT INTO attendances (user_id, status, timestamp) VALUES ($1, $2, $3) RETURNING *",
+    const [result] = await pool.query(
+      "INSERT INTO attendances (user_id, status, timestamp) VALUES (?, ?, ?)",
       [user_id, status, istNow]
     );
-    res.status(201).json(result.rows[0]);
+    res
+      .status(201)
+      .json({ id: result.insertId, user_id, status, timestamp: istNow });
   } catch (err) {
     console.error("POST /api/attendances error:", err.message);
     res.status(500).json({ error: "Failed to insert attendance record" });
